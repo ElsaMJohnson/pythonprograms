@@ -30,8 +30,8 @@ import numpy as np
 #	outfile is outfile
 ##Example usage
 #Z,Xn,Yn,color=subgrids('m81medreadpoly.txt',res=25,cut=.6, blim=23,rlim=22,overlap='No', outfile = 'unfilteredM81.txt')
-#heatfilter(Z,val=2,outfile='m81filtered.txt')
-
+#outarr = heatfilter(Z,val=2,outfile='m81filtered.txt')
+#Then if you need further filtering you can use outarr in the heatfilter function again
 
 def subgrids(file, res=25, cut=1, blim=23, rlim=22,overlap = 'No',outfile='out.txt'):
 #  galfile='m101output24nol.txt'
@@ -224,5 +224,5 @@ def heatfilter(Z,val=.6,outfile='filterout.txt' ):
    ax.set_zlim3d(0,max(crap))
    ax.w_zaxis.set_major_locator(LinearLocator(6))
    plt.show()
-
+   return X
 
