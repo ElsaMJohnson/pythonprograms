@@ -1,0 +1,139 @@
+These are the steps to produce a 3D printed 2 color galaxy from Pine Mountain
+Images. Obviously can adapt this to other astronomical images.
+All tasks are done interactively in IRAF of pyraf
+1. First need to take care of the dark images. 
+(There are no flats for Pine Mountain images.) Subtract appropriate dark from 
+each image - I match exposure times of dark to relevant images
+If all science images are stored in image.list, this is just:
+	imarith @image.list - dark.fits d//@image.list
+
+2. Align all images using imalign - individual filter images will be added or
+'medianed' together to remove bad pixels and cosmic rays. To align:
+	-create list of images (all filters) - center B to R file for instance
+	 so you don't have to align them later
+	-create list of star coordinates (4-5) find with imexamine 'a'
+	-create list of shifts from one star to same star in another image like:
+        0 0
+        1 10
+        10 -2
+        ..etc
+NOTE!!! the big trick is that its ref image coord - image coord. so if your ref
+coord is 305, 200 and the regular image coord is 314 201, the shift the image
+coord makes is -9 -1 and that goes in the file!!!
+ALSO!!! if you get a 'shift and image number are not the same' error 
+just increase the small and large box size to encompass the largest
+shift. Use a reference image with coordinates somewhat centered between all
+measured values
+
+Mini python script to calculate shifts in format 
+      row1 col1 row2 col2...
+star1
+star2
+.
+.
+.
+import numpy as np
+cc = np.loadtxt("vcoords.txt", skiprows=2)
+ref = cc[0:nstars+1,refrow:refcol+1]
+shift = np.round(np.average(ref - cc[0:nstars+1,row1:col1+1],axis=0)) 
+#The above gives the average shift for each image,
+# Cut and paste into file and make a list (in the same order) of the images
+#if you don't use all the stars, then just select specific rows cc[ [0,2],]
+        imalign input refimage pixelcoordfile outputfile shift=shiftfile
+	imalign d//@image.list refimage.fits images.coords a//@images.list shift = images.shift
+
+3. Combine same filter images together using imcombine (ave, median or add). I
+prefer median to avoid any dead or hot pixels.
+
+4. Note: There is no tasks to do in this step. Instead 
+ I left the comments of this step to show the reasons why
+some (all) iraf techniques don't work to remove stars, so don't bother
+researching masks, or any of that crap. Use Sam's routine later on after 
+doing the photometry because it won't work on fits images only text image
+data.
+(a)Tried fix saturated pixels with imexpr imarth and it's flipped. fantastic.
+(b) I tried imedit and interactively changed the pixel values using
+imedit. this was amazingly inefficient. The command is f to replace a line, 
+less cruder than l which replaces an entire rectangular region. 
+in fact it is the most subtle fine tuned change.
+It interpolates over the nearest background or line. It aint perfect but it will do.
+(c) Sam's algorithm - heat transfer diffeq applied to image <--best way -Use this later!
+Only apply to grids not fits images
+
+5. Find zeropoints of U and I (or whichever filters) 
+ looking up known star values on NED or any DB
+Note that if you can't find standard values for the bands you are looking at
+(e.g. U,I) you can use the conversions in SDSS if that area is covered
+
+6. do actual photometry with grids on stars for estimated zeropoints
+using imexamine just because it's easier. Also record the sky background
+values. Put all of this into a text file called standstars.txt
+Once you have the flux for several stars and the corresponding 
+catalog magnitudes in the appropriate bands use zp = mstand+2.5log10(F) 
+where mstand are the standard UBVRI mags and F is the
+measured flux from imexamine. Or use zp = mstand-mmeasured
+Take the average value for each filter. Typically I use SDSS for calibration 
+stars and use the conversion of Jordi et al 2005 
+http://www.sdss.org/dr12/algorithms/sdssUBVRITransform/#Jordi2006
+        Transformation
+    U-B   =     (0.79 ± 0.02)*(u-g)    - (0.93 ± 0.02)
+    U-B   =     (0.52 ± 0.06)*(u-g)    + (0.53 ± 0.09)*(g-r) - (0.82 ± 0.04)
+    B-g   =     (0.175 ± 0.002)*(u-g)  + (0.150 ± 0.003)
+    B-g   =     (0.313 ± 0.003)*(g-r)  + (0.219 ± 0.002)
+    V-g   =     (-0.565 ± 0.001)*(g-r) - (0.016 ± 0.001)
+    V-I   =     (0.675 ± 0.002)*(g-i)  + (0.364 ± 0.002) if  g-i <= 2.1
+    V-I   =     (1.11 ± 0.02)*(g-i)    - (0.52 ± 0.05)   if  g-i >  2.1
+    R-r   =     (-0.153 ± 0.003)*(r-i) - (0.117 ± 0.003)
+    R-I   =     (0.930 ± 0.005)*(r-i)  + (0.259 ± 0.002)
+    I-i   =     (-0.386 ± 0.004)*(i-z) - (0.397 ± 0.001)
+Note, you need to also be aware of exposure times or your imexamine settings
+for these. If the filters differ in exposure times, the zeropoint will account
+for that. 
+For example using B and V images and calibration stars from SDSS
+Python script:
+import numpy as np
+bflux = np.array([numbers from imexamine])
+Vflux = np.array([numbers from imxamine])
+#if already magnitudes:
+bmag = np.array([...])
+gmag = np.array([...])
+rmag = np.array([...])
+vmag = np.array([...])
+Bcalarr = gmag+(0.313)*(gmag-rmag)  + (0.219)
+Vcalarr = gmag + (-0.565)*(gmag-rmag) - (0.016)
+Bzparr = Bcalarr-bmag  
+Vzparr = Vcalarr-vmag
+# At this point, be sure to check out the values before you average them. You
+# can easily have some wonky ones that you can't use.
+
+7. Prep for polyphot. 
+ 	a. Created a program that makes grids to apply to galaxy  - 
+	called polygrids.py - allows for overlap and non overlapped grids
+	b. create the polygon file (e.g. p25)
+	c. Measure sky background 
+you don't have to apply the zeropoint here - in fact it's unnecessary, see
+step 8
+
+8. Created fortran program to process the polyphot files into something usable.
+calculate magnitude, error (I used gain of 10, better detectors have a lower
+value for gain). program is called readpolyphot.f. The magnitude has to be 
+recalculated because there are  too many indefs for negative fluxes. 
+create a galaxy file for input that contains the polyphot output files
+extinction values for each filter and  zeropoints
+#order is:
+#bfile
+#rfile
+#B zeropoint
+#R zeropoint
+#B extinction
+#R extinction
+#output file name
+
+Later I will convert to python.
+
+9. Created separate programs and now have combined into one file (pythonHeat, 
+plotg2) into proc_3dgal.py This program does everything. It takes the readpoly
+file and subtracts the different filtered grids, plots it and then creates the levels for the
+3dfile. Then with this info it goes through the python heat routine and
+removes stars, plots the output and then plots the 3d file.
+
