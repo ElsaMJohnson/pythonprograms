@@ -1,4 +1,4 @@
-####Fakesn.f produces a pixel list of simulated SNe within a simulated sky image. The list can be converted to and image 
+####Fakesn.f produces a pixel list of simulated SNe within a simulated sky image. The list can be converted to an image 
 ####pyraf/iraf using rtextimage header = no. The final image is 1000x1000. Provided is an example of the image. The SNe are 
 ####double gaussians, with sigmas = 1 and 2. Sky noise is added and all relevant parameters except image size can be changed. 
 ####Image size and gaussians could be changed but presently they are written in the code.
